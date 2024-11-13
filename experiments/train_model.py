@@ -6,7 +6,7 @@ import matplotlib as plt
 import torch.nn.functional as F
 from torch import optim
 
-n_epochs = 3
+n_epochs = 5
 batch_size_train = 64
 batch_size_test = 1000
 learning_rate = 0.01
@@ -72,8 +72,8 @@ def train(epoch):
       train_losses.append(loss.item())
       train_counter.append(
         (batch_idx*64) + ((epoch-1)*len(train_loader.dataset)))
-      torch.save(network.state_dict(), '/data/ikhtiyor/MGloP/results/model.pth')
-      torch.save(optimizer.state_dict(), '/data/ikhtiyor/MGloP/results/optimizer.pth')
+      torch.save(network.state_dict(), '/data/ikhtiyor/MGloP/MGloP/results/model.pth')
+      torch.save(optimizer.state_dict(), '/data/ikhtiyor/MGloP/MGloP/results/optimizer.pth')
 
 def test():
   network.eval()
