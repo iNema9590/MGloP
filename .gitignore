@@ -1,0 +1,6 @@
+data/
+models/
+plot_data/
+__pycache__/
+IF/__pycache__/
+modelsmnist/
