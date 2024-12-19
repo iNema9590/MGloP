@@ -218,70 +218,66 @@ def find_representative_samples(test_embeddings, train_embeddings, ifem, N, iN, 
     # Extract nodes and neighbors
     nodes_0 = [n for n, d in G.nodes(data=True) if d["bipartite"] == 0]
     nodes_1 = [n for n, d in G.nodes(data=True) if d["bipartite"] == 1]
-    # neighbors = {node: set(G.neighbors(node)) for node in nodes_0}
 
-    connection_matrix = np.zeros((len(nodes_0), len(nodes_1)))
-    for i, test_node in enumerate(nodes_0):
-        for j, train_node in enumerate(nodes_1):
-            if G.has_edge(test_node, train_node):
-                connection_matrix[i, j] = G[test_node][train_node]['weight']    
+    if alpha:
+        # Compute pairwise connection strengths
+        num_nodes = len(nodes_0)
+        connection_matrix = np.zeros((num_nodes, num_nodes))
+        neighbors = {node: set(G.neighbors(node)) for node in nodes_0}
+        for i, node1 in enumerate(nodes_0):
+            for j, node2 in enumerate(nodes_0):
+                if i != j:
+                    # Compute shared neighbors count
+                    common_neighbors=neighbors[node1] & neighbors[node2]
+                    weits=sum([(G[i][k]['weight']+G[j][k]['weight'])/2 for k in common_neighbors])
+                    connection_matrix[i, j] = weits/iN
+        print("connection matrix is ready")
+        # Compute semantic similarity
+        embeddings_matrix = test_embeddings[nodes_0]
+        similarity_matrix = cosine_similarity(embeddings_matrix)
+        
+        # Combine connection strength and semantic similarity (prioritizing connections)
+        combined = np.vstack((connection_matrix, similarity_matrix))
+
+        # Initialize and fit the scaler
+        scaler = MinMaxScaler()
+        scaler.fit(combined)
+
+        # Transform each array
+        scaled_array1 = scaler.transform(connection_matrix)
+        scaled_array2 = scaler.transform(similarity_matrix)
+        combined_matrix = (1-alpha)*scaled_array1 + alpha*scaled_array2
+        
+        # Perform clustering
+        clustering = SpectralClustering(
+            n_clusters=N,  # Adjust number of clusters as neededs
+            affinity="precomputed",
+            random_state=42
+        )
+        labels = clustering.fit_predict(combined_matrix)
+        
+        # Select representatives
+        representatives = []
+        for cluster_id in np.unique(labels):
+            cluster_nodes = [nodes_0[i] for i in range(num_nodes) if labels[i] == cluster_id]
+            # Select the node with the maximum connections
+            representative = max(cluster_nodes, key=lambda n: sum(connection_matrix[nodes_0.index(n)]))
+            representatives.append(representative)
+        return representatives
+    else:
+        # neighbors = {node: set(G.neighbors(node)) for node in nodes_0}
+
+        connection_matrix = np.zeros((len(nodes_0), len(nodes_1)))
+        for i, test_node in enumerate(nodes_0):
+            for j, train_node in enumerate(nodes_1):
+                if G.has_edge(test_node, train_node):
+                    connection_matrix[i, j] = G[test_node][train_node]['weight']    
 
 
-    dissimilarity_matrix = squareform(pdist(connection_matrix, metric='cosine'))
-    # medoids = kmedoids(n_clusters=N, metric='precomputed', random_state=42)
-    medoids=kmedoids.fasterpam(dissimilarity_matrix, N, max_iter=100, random_state=12)
-    # medoids.fit(dissimilarity_matrix)
-    # Step 5: Extract representative nodes
-    return medoids.medoids
-
-
-    # Compute pairwise connection strengths
-    # num_nodes = len(nodes_0)
-    # connection_matrix = np.zeros((num_nodes, num_nodes))
-    # neighbors = {node: set(G.neighbors(node)) for node in nodes_0}
-    # for i, node1 in enumerate(nodes_0):
-    #     for j, node2 in enumerate(nodes_0):
-    #         if i != j:
-    #             # Compute shared neighbors count
-    #             common_neighbors=neighbors[node1] & neighbors[node2]
-    #             weits=sum([(G[i][k]['weight']+G[j][k]['weight'])/2 for k in common_neighbors])
-    #             connection_matrix[i, j] = weits/iN
-    # print("connection matrix is ready")
-    # # Compute semantic similarity
-    # embeddings_matrix = test_embeddings[nodes_0]
-    # similarity_matrix = cosine_similarity(embeddings_matrix)
-    
-    # # Combine connection strength and semantic similarity (prioritizing connections)
-    # combined = np.vstack((connection_matrix, similarity_matrix))
-
-    # # Initialize and fit the scaler
-    # scaler = MinMaxScaler()
-    # scaler.fit(combined)
-
-    # # Transform each array
-    # scaled_array1 = scaler.transform(connection_matrix)
-    # scaled_array2 = scaler.transform(similarity_matrix)
-    # combined_matrix = (1-alpha)*scaled_array1 + alpha*scaled_array2
-    
-    # # Perform clustering
-    # clustering = SpectralClustering(
-    #     n_clusters=N,  # Adjust number of clusters as neededs
-    #     affinity="precomputed",
-    #     random_state=42
-    # )
-    # labels = clustering.fit_predict(combined_matrix)
-    
-    # # Select representatives
-    # representatives = []
-    # for cluster_id in np.unique(labels):
-    #     cluster_nodes = [nodes_0[i] for i in range(num_nodes) if labels[i] == cluster_id]
-    #     # Select the node with the maximum connections
-    #     representative = max(cluster_nodes, key=lambda n: sum(connection_matrix[nodes_0.index(n)]))
-    #     representatives.append(representative)
-    # if coverage:
-    #     return representatives, labels
-    # else:
-    #     return representatives
+        dissimilarity_matrix = squareform(pdist(connection_matrix, metric='cosine'))
+        medoids=kmedoids.fasterpam(dissimilarity_matrix, N, max_iter=100, random_state=12)
+        # Step 5: Extract representative nodes
+        return medoids.medoids
         
 def cluster_by_prototypes(data, prototypes):
 
