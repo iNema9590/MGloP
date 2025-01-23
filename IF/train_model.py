@@ -29,7 +29,7 @@ class LinearModel(nn.Module):
 #         x = self.fc(x)
 #         return x
 
-def fit_model(train_embeddings, train_labels, num_epochs=100, learning_rate=0.001):
+def fit_model(train_embeddings, train_labels, num_epochs=5, learning_rate=0.001):
     # Create the linear neural network
     model = LinearModel()
 
@@ -73,8 +73,8 @@ def save_embeddings(dataloader, file_prefix, model, device):
             labels.append(targets)
     embeddings = torch.cat(embeddings)
     labels = torch.cat(labels)
-    torch.save(embeddings, f'{file_prefix}_embeddings.pt')
-    torch.save(labels, f'{file_prefix}_labels.pt')
+    torch.save(embeddings, f'{file_prefix}_embeddings2.pt')
+    torch.save(labels, f'{file_prefix}_labels2.pt')
 
 
 if __name__ == "__main__":
@@ -85,67 +85,65 @@ if __name__ == "__main__":
     ])
 
     # Load the CIFAR-10 dataset
-    # trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
-    # testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
-    # torch.manual_seed(8)
-    # trainloader = DataLoader(trainset, batch_size=100, shuffle=True, num_workers=2)
-    # testloader = DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
+    trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+    torch.manual_seed(8)
+    trainloader = DataLoader(trainset, batch_size=100, shuffle=True, num_workers=2)
+    testloader = DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
 
     # # Load a pre-trained ResNet50 model
-    # resnet = models.resnet50(pretrained=True)
+    resnet = models.resnet50(pretrained=True)
 
     # # Replace the final fully connected layer with a new one for CIFAR-10
-    # num_ftrs = resnet.fc.in_features
-    # resnet.fc = nn.Linear(num_ftrs, 10)
+    num_ftrs = resnet.fc.in_features
+    resnet.fc = nn.Linear(num_ftrs, 10)
 
     # # Move the model to GPU if available
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # resnet = resnet.to(device)
+    resnet = resnet.to(device)
 
     # # Define loss function and optimizer
-    # criterion = nn.CrossEntropyLoss()
-    # optimizer = optim.Adam(resnet.parameters(), lr=0.001)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(resnet.parameters(), lr=0.001)
 
-    # # Fine-tune the ResNet50 model on CIFAR-10
-    # num_epochs = 10
-    # for epoch in range(num_epochs):
-    #     resnet.train()
-    #     running_loss = 0.0
-    #     for i, data in enumerate(trainloader, 0):
-    #         inputs, labels = data
-    #         inputs, labels = inputs.to(device), labels.to(device)
+    # Fine-tune the ResNet50 model on CIFAR-10
+    num_epochs = 5
+    for epoch in range(num_epochs):
+        resnet.train()
+        running_loss = 0.0
+        for i, data in enumerate(trainloader, 0):
+            inputs, labels = data
+            inputs, labels = inputs.to(device), labels.to(device)
+            optimizer.zero_grad()
+            outputs = resnet(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
 
-    #         optimizer.zero_grad()
+            running_loss += loss.item()
+            if i % 100 == 99:
+                print(f'[Epoch {epoch + 1}, Batch {i + 1}] loss: {running_loss / 100:.3f}')
+                running_loss = 0.0
 
-    #         outputs = resnet(inputs)
-    #         loss = criterion(outputs, labels)
-    #         loss.backward()
-    #         optimizer.step()
+    print('Finished fine-tuning')
 
-    #         running_loss += loss.item()
-    #         if i % 100 == 99:
-    #             print(f'[Epoch {epoch + 1}, Batch {i + 1}] loss: {running_loss / 100:.3f}')
-    #             running_loss = 0.0
+    # Extract embeddings using the fine-tuned ResNet50 model
+    resnet.fc = nn.Identity()  # Remove the classification head to get embeddings
 
-    # print('Finished fine-tuning')
-
-    # # Extract embeddings using the fine-tuned ResNet50 model
-    # resnet.fc = nn.Identity()  # Remove the classification head to get embeddings
-
-    # # Save embeddings
-    # save_embeddings(trainloader, 'data/train', resnet, device)
-    # save_embeddings(testloader, 'data/test', resnet, device)
-    # print("Embeddings are saved")
+    # Save embeddings
+    save_embeddings(trainloader, 'data/train', resnet, device)
+    save_embeddings(testloader, 'data/test', resnet, device)
+    print("Embeddings are saved")
 
     # Load the saved embeddings and labels
-    train_embeddings = torch.load('./data/train_embeddings.pt')
-    train_labels = torch.load('./data/train_labels.pt')
-    test_embeddings = torch.load('./data/test_embeddings.pt')
-    test_labels = torch.load('./data/test_labels.pt')
+    train_embeddings = torch.load('./data/train_embeddings2.pt')
+    train_labels = torch.load('./data/train_labels2.pt')
+    test_embeddings = torch.load('./data/test_embeddings2.pt')
+    test_labels = torch.load('./data/test_labels2.pt')
 
     # Train the linear model on embeddings
     network = fit_model(train_embeddings, train_labels)
-    torch.save(network.state_dict(), '../data/main_model.pth')
+    torch.save(network.state_dict(), '../data/main_model2.pth')
     print('Model saved.')
 
     # Evaluate the model on test data

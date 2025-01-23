@@ -10,6 +10,8 @@ from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from IF import *
+from sklearn.preprocessing import normalize
+from sklearn.decomposition import TruncatedSVD
 
 def find_prototypes(embeddings, labels, N, method='global'):
     # Convert embeddings and labels to numpy arrays for use with scikit-learn
@@ -88,14 +90,10 @@ def nearest_medoid_accuracy(embeddings, labels, protos):
     
     prototype_embeddings=embeddings[protos]
     prototype_labels=labels[protos]
-    # Convert embeddings to numpy array
-    embeddings_np = embeddings
-    # .cpu().detach().numpy()
-    prototype_embeddings_np = prototype_embeddings
-    # .cpu().detach().numpy()
+
     
     # Compute distances from each embedding to each prototype
-    distances = cosine_similarity(embeddings_np, prototype_embeddings_np)
+    distances = cosine_similarity(embeddings, prototype_embeddings)
     nearest_medoid_indices = np.argmax(distances, axis=1)
     predicted_labels = prototype_labels[nearest_medoid_indices]
     
@@ -273,8 +271,14 @@ def find_representative_samples(test_embeddings, train_embeddings, ifem, N, iN, 
                 if G.has_edge(test_node, train_node):
                     connection_matrix[i, j] = G[test_node][train_node]['weight']    
 
+        connection_matrix = normalize(connection_matrix, norm='l1', axis=1)
+        svd = TruncatedSVD(n_components=min(len(nodes_0), len(nodes_1)) // 2)
+        reduced_matrix = svd.fit_transform(connection_matrix)
+        dissimilarity_matrix = 1 - cosine_similarity(reduced_matrix)
 
-        dissimilarity_matrix = squareform(pdist(connection_matrix, metric='cosine'))
+
+
+        # dissimilarity_matrix = squareform(pdist(connection_matrix, metric='cosine'))
         medoids=kmedoids.fasterpam(dissimilarity_matrix, N, max_iter=100, random_state=12)
         # Step 5: Extract representative nodes
         return medoids.medoids
